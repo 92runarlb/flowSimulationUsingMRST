@@ -1,6 +1,11 @@
-close all; clear; %addpath ../../voronoi2D/
+clc;
+
+clear; close all; %addpath ../../voronoi2D/
 
 mrstModule add mimetic
+addpath('../../vem/vem/mat/VEM2D/stable/')
+run('../../project-mechanics-fractures/mystartup.m')
+
 % this script performs a simple 2 phase(oil and water) flow simulation in
 % Using a composite grid. The case consist of two wells (one injector and
 % one producer) and a linear no-flow fault seperating them.
@@ -80,16 +85,36 @@ switch gT
     error('unknown grid case')
 end                  
 
-G = makeInternalBoundary(G, find(G.faces.tag));
-G = computeGeometry(G);
 
 
+G = sortEdges(G);
+G = mrstGridWithFullMappings(G);
+G = VEM2D_makeInternalBoundary(G, find(G.faces.tag));
+plotGrid(G);
+figure;
+G = computeVEM2DGeometry(G);
 
+%%  Set BC
+tol = 1e-6;
+boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
+isExternal = abs(G.faces.centroids(boundaryEdges,1)) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,1) - xmax) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,2)) < tol |...
+             abs(G.faces.centroids(boundaryEdges,2) - ymax) < tol;
+isInternal = ~isExternal;
+
+bc_VEM = VEM_addBC(G, [], boundaryEdges(isExternal), 'pressure', 0);
+bc_VEM = VEM_addBC(G, bc_VEM, boundaryEdges(isInternal), 'flux', 0);
+
+bc_MRST = addBC([], boundaryEdges(isExternal), 'pressure', 0);
+bc_MRST = addBC(bc_MRST, boundaryEdges(isInternal), 'flux', 0);
+
+            
 %% Set fluid and rock properties
 gravity reset off 
 
-fluid = initSingleFluid('mu' , 1*centi*poise     , ...
-                        'rho', 1*kilogram/meter^3);
+fluid = initSingleFluid('mu' , 2    , ...
+                        'rho', 1);
 
 rock.poro = ones(G.cells.num,1);
 rock.perm = ones([G.cells.num,1]);
@@ -98,8 +123,11 @@ rock.perm = ones([G.cells.num,1]);
 %% add Sources
 srcCells = find(G.cells.tag);
 pv = sum(poreVolume(G, rock));
-src = addSource([],srcCells(1),0.01*pv,'sat',[1,0]);
-src = addSource(src, srcCells(2), -0.01*pv,'sat',[0,1]);
+src = addSource([],srcCells(1),0.01*pv);
+src = addSource(src, srcCells(2), -0.01*pv);
+src1 = addSource([],srcCells(1),0.1*pv);
+src1 = addSource(src1, srcCells(2), -0.1*pv);
+
 
 
 %% Initialize state
@@ -108,23 +136,29 @@ S     = computeMimeticIP(G, rock, 'Verbose', true);
 trans = computeTrans(G,rock);
 %% Solve Laplace
 
-sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src);
-sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src);
+sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
+sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src);
+sVEM1 = cellAverages(G, sVEM1);
+sVEM2 = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+subplot(2,2,1)
+plotCellData(G,sTPFA.pressure);
+title('TPFA');
+colorbar;
+axis equal
+subplot(2,2,2)
+plotCellData(G,sMIM.pressure);
+title('Mimetic');
+colorbar;
+axis equal
+subplot(2,2,3)
+plotCellData(G,sVEM1.cellAverages);
+title('VEM 1st order');
+colorbar;
+axis equal
+subplot(2,2,4)
+plotCellData(G,sVEM2.cellMoments);
+title('VEM 2nd order');
+colorbar;
+axis equal

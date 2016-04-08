@@ -266,7 +266,7 @@ function isparallel = compareNormals(nn1,nn2, coord)
    n  = [diff(y(nn1), 1, 2), -diff(x(nn1), 1, 2)];
    e  = [diff(x(nn2), 1, 2),  diff(y(nn2), 1, 2)];
    ip = abs(sum(n.*e, 2));
-   isparallel = (ip < 10*eps);
+   isparallel = (ip < 1e-3);
 end
 
 function p = circumcenter(G)
