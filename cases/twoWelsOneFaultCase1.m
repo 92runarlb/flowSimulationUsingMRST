@@ -85,8 +85,6 @@ switch gT
     error('unknown grid case')
 end                  
 
-
-
 G = sortEdges(G);
 G = mrstGridWithFullMappings(G);
 G = VEM2D_makeInternalBoundary(G, find(G.faces.tag));
@@ -113,8 +111,7 @@ bc_MRST = addBC(bc_MRST, boundaryEdges(isInternal), 'flux', 0);
 %% Set fluid and rock properties
 gravity reset off 
 
-fluid = initSingleFluid('mu' , 2    , ...
-                        'rho', 1);
+fluid = initSingleFluid('mu' , 1, 'rho', 1);
 
 rock.poro = ones(G.cells.num,1);
 rock.perm = ones([G.cells.num,1]);
@@ -123,12 +120,15 @@ rock.perm = ones([G.cells.num,1]);
 %% add Sources
 srcCells = find(G.cells.tag);
 pv = sum(poreVolume(G, rock));
-src = addSource([],srcCells(1),0.01*pv);
-src = addSource(src, srcCells(2), -0.01*pv);
-src1 = addSource([],srcCells(1),0.1*pv);
-src1 = addSource(src1, srcCells(2), -0.1*pv);
+src = addSource([],srcCells(1),5);
+src = addSource(src, srcCells(2), -5);
 
-
+% eps = .019;
+% srcCentroid = G.cells.centroids(srcCells(1));
+% fsrc = @(X) src.rate(1)/(2*pi*eps)*exp(-sum((bsxfun(@minus, X, srcCentroid).^2),2)/(2*eps));
+% sinkCentroid = G.cells.centroids(srcCells(2));
+% fsink = @(X) src.rate(2)/(2*pi*eps)*exp(-sum((bsxfun(@minus, X, sinkCentroid).^2),2)/(2*eps));
+% f = @(X) fsrc(X) + fsink(X);
 
 %% Initialize state
 sInit = initState(G, [], 0, [0.0,1]);
@@ -138,8 +138,7 @@ trans = computeTrans(G,rock);
 
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src);
-sVEM1 = cellAverages(G, sVEM1);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
 sVEM2 = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
 
 subplot(2,2,1)
@@ -153,7 +152,7 @@ title('Mimetic');
 colorbar;
 axis equal
 subplot(2,2,3)
-plotCellData(G,sVEM1.cellAverages);
+plotCellData(G,sVEM1.cellMoments);
 title('VEM 1st order');
 colorbar;
 axis equal
