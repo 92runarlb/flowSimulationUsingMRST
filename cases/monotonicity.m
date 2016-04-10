@@ -1,4 +1,4 @@
-clc; clear all; close all
+2clc; clear all; close all
 
 mrstModule add mimetic
 mrstModule add streamlines
@@ -73,7 +73,7 @@ SbMIM = pollock(G, sMIM, seed,'substeps', 1,'reverse', true);
 sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
 sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
 sVEM2.s = sTPFA.s;
-[sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
+%[sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
 SfVEM2 = pollock(G, sVEM2, seed,'substeps', 1);
 SbVEM2 = pollock(G, sVEM2, seed,'substeps', 1,'reverse', true);
 %% Plotting

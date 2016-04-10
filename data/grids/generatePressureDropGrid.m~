@@ -1,0 +1,154 @@
+clc; clear; close all;
+
+mrstModule add mimetic
+addpath('~/NTNU/5/master/vem/mat/')
+addpath('~/NTNU/5/master/vem/mat/VEM2D/stable/')
+run('~/NTNU/5/master/project-mechanics-fractures/mystartup.m')
+
+%% Chose grid
+% Chose the type of grid.
+% gT = 1      Coarse cartesian
+% gT = 2      composite pebi
+% gT = 3      fully unstructured grid
+
+gT = 3;
+
+
+%% Grid parameters
+% shared parameters
+xmax = 1;                              % Set grid dimentions
+ymax = 1;
+
+wellLine = {[xmax/2,ymax/2]};                % Set source center
+
+switch gT
+  case 1
+    nx = 30;
+    G = cartGrid([nx,nx],[xmax,ymax]);
+    G = computeGeometry(G);
+    w1 = wellLine{1};
+    D = pdist2(G.cells.centroids, w);
+    [~, I] = min(D, [], 1);
+    G.cells.tag = false(G.cells.num,1);
+    G.cells.tag(I') = true(size(I'));
+    % Find faults
+    n = nx*100;
+    fault = faultLine{1};
+    fault(:,2) = fault(:,2);    
+    dx = fault(2,1) - fault(1,1);
+    dy = fault(2,2) - fault(1,2);
+    
+    vx = fault(2,:) - fault(1,:);
+    spacing = linspace(0,1,n)';
+    liney = fault(1,2) +ceil((dy*spacing- mod(dy*spacing, 0.5/nx))*nx)/nx;
+    linex = fault(1,1) + dx*spacing- mod(dx*spacing, 1/nx);
+    line = [linex,liney];
+    [line, ~, IC] = uniquetol(line,1/nx*1e-6, 'ByRows', true);
+    line = line(IC,:);
+    line = unique(line,'rows','stable');
+    line = 0.5*(line(1:end-1,:)+line(2:end,:));
+    
+    D = pdist2(G.faces.centroids, line);
+    [~, I] = min(D, [], 1);
+    G.faces.tag = false(G.faces.num,1);
+    G.faces.tag(I') = true(size(I'));
+    
+  case 2 
+    gridSize = xmax*1/30;                   % Size of gridcells
+
+    mlqtMax = 2;                            % Set number of reminement levels
+    wellGridSize = 0.75/2^mlqtMax;          % Set relative well grid size
+    mlqtSizes = 2.0*linspace(gridSize,gridSize*wellGridSize,mlqtMax+1)';
+                                            % Size around wells to be refined 
+    G = compositePebiGrid(gridSize, [xmax, ymax], 'wellLines', wellLine, ...
+                         'wellGridFactor', wellGridSize, ...
+                         'mlqtMaxLevel', 2, 'mlqtLevelSteps', mlqtSizes,...
+                         'faultLines', faultLine);
+    G = computeGeometry(G);
+  case 3
+    gridSize = xmax/8;   
+    wellGridSize = 0.75/2^3;
+    epsilon = gridSize*1;
+    G = pebiGrid(gridSize, [xmax, ymax], 'wellLines', wellLine,   ...
+                'wellGridFactor', wellGridSize, 'wellRefinement',true,...
+                'epsilon',epsilon,'faultLines', faultLine);
+    G = computeGeometry(G);
+  otherwise
+    error('unknown grid case')
+end                  
+
+G = sortEdges(G);
+G = mrstGridWithFullMappings(G);
+G = VEM2D_makeInternalBoundary(G, find(G.faces.tag));
+plotGrid(G);
+figure;
+G = computeVEM2DGeometry(G);
+
+%%  Set BC
+tol = 1e-6;
+boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
+isExternal = abs(G.faces.centroids(boundaryEdges,1)) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,1) - xmax) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,2)) < tol |...
+             abs(G.faces.centroids(boundaryEdges,2) - ymax) < tol;
+isInternal = ~isExternal;
+
+bc_VEM = VEM_addBC(G, [], boundaryEdges(isExternal), 'pressure', 0);
+bc_VEM = VEM_addBC(G, bc_VEM, boundaryEdges(isInternal), 'flux', 0);
+
+bc_MRST = addBC([], boundaryEdges(isExternal), 'pressure', 0);
+bc_MRST = addBC(bc_MRST, boundaryEdges(isInternal), 'flux', 0);
+
+            
+%% Set fluid and rock properties
+gravity reset off 
+
+fluid = initSingleFluid('mu' , 1, 'rho', 1);
+
+rock.poro = ones(G.cells.num,1);
+rock.perm = ones([G.cells.num,1]);
+
+
+%% add Sources
+Q = 100;
+srcCells = find(G.cells.tag);
+pv = sum(poreVolume(G, rock));
+src = addSource([],srcCells(1),Q);
+
+% eps = .019;
+% srcCentroid = G.cells.centroids(srcCells(1));
+% fsrc = @(X) src.rate(1)/(2*pi*eps)*exp(-sum((bsxfun(@minus, X, srcCentroid).^2),2)/(2*eps));
+% sinkCentroid = G.cells.centroids(srcCells(2));
+
+%% Initialize state
+sInit = initState(G, [], 0, [0.0,1]);
+S     = computeMimeticIP(G, rock, 'Verbose', true);
+trans = computeTrans(G,rock);
+%% Solve Laplace
+
+sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
+sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
+sVEM2 = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+
+colormap(jet);
+subplot(2,2,1)
+plotCellData(G,sTPFA.pressure);
+title('TPFA');
+colorbar;
+axis equal
+subplot(2,2,2)
+plotCellData(G,sMIM.pressure);
+title('Mimetic');
+colorbar;
+axis equal
+subplot(2,2,3)
+plotCellData(G,sVEM1.cellMoments);
+title('VEM 1st order');
+colorbar;
+axis equal
+subplot(2,2,4)
+plotCellData(G,sVEM2.cellMoments);
+title('VEM 2nd order');
+colorbar;
+axis equal
