@@ -1,4 +1,4 @@
-2clc; clear all; close all
+clc; clear all; close all
 
 mrstModule add mimetic
 mrstModule add streamlines
@@ -60,31 +60,31 @@ trans = computeTrans(G,rock);
 
 %% TPFA
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'bc',bc_MRST);
-seed = (nx:nx-1:nx*ny).';
-SfTPFA = pollock(G, sTPFA, seed,'substeps', 1);
-SbTPFA = pollock(G, sTPFA, seed,'substeps', 1,'reverse', true);
+% seed = (nx:nx-1:nx*ny).';
+% SfTPFA = pollock(G, sTPFA, seed,'substeps', 1);
+% SbTPFA = pollock(G, sTPFA, seed,'substeps', 1,'reverse', true);
 
 %% MIMETIC
 sMIM  = incompMimetic(sInit, G, S, fluid,'bc',bc_MRST);
-seed = (nx:nx-1:nx*ny).';
-SfMIM = pollock(G, sMIM, seed,'substeps', 1);
-SbMIM = pollock(G, sMIM, seed,'substeps', 1,'reverse', true);
-%% VEM2
+% seed = (nx:nx-1:nx*ny).';
+% SfMIM = pollock(G, sMIM, seed,'substeps', 1);
+% SbMIM = pollock(G, sMIM, seed,'substeps', 1,'reverse', true);
+%% VEM1
 sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
+%% VEM2
 sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
-sVEM2.s = sTPFA.s;
-%[sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
-SfVEM2 = pollock(G, sVEM2, seed,'substeps', 1);
-SbVEM2 = pollock(G, sVEM2, seed,'substeps', 1,'reverse', true);
+% [sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
+% SfVEM2 = pollock(G, sVEM2, seed,'substeps', 1);
+% SbVEM2 = pollock(G, sVEM2, seed,'substeps', 1,'reverse', true);
 %% Plotting
 %% TPFA
 subplot(2,2,1)
 hold on
 plotCellData(G,sTPFA.pressure,'edgecolor','none');
 colormap('jet')
-hf=streamline(SfTPFA);
-hb=streamline(SbTPFA);
-set([hf;hb],'Color','k');
+% hf=streamline(SfTPFA);
+% hb=streamline(SbTPFA);
+% set([hf;hb],'Color','k');
 
 title('TPFA');
 colorbar;
@@ -93,17 +93,19 @@ colorbar;
 subplot(2,2,2)
 plotCellData(G,sMIM.pressure,'edgecolor','none');
 hold on
-hf=streamline(SfMIM);
-hb=streamline(SbMIM);
-set([hf;hb],'Color','k');
+% hf=streamline(SfMIM);
+% hb=streamline(SbMIM);
+% set([hf;hb],'Color','k');
 title('Mimetic');
 colorbar;
 %axis equal
+%% VEM1
 subplot(2,2,3)
 plotCellData(G,sVEM1.cellMoments,'edgecolor','none');
 title('VEM 1st order');
 colorbar;
 %axis equal
+%% VEM 2
 subplot(2,2,4)
 plotCellData(G,sVEM2.cellMoments,'edgecolor','none');
 %hf=streamline(SfVEM2);
