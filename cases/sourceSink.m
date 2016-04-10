@@ -1,5 +1,6 @@
 clc; clear all; close all;
 
+mrstModule add mimetic
 % addpath('../');
 % addpath('../../');
 % addpath('~/Documents/master/pebiGridding/voronoi2D/')
@@ -8,6 +9,11 @@ clc; clear all; close all;
 
 run('~/NTNU/5/master/project-mechanics-fractures/mystartup.m')
 addpath('~/NTNU/5/master/flowSimulationUsingMRST/pebi/')
+addpath('~/NTNU/5/master/pebiGridding/voronoi2D/')
+addpath('~/NTNU/5/master/vem/vem/mat/')
+addpath('~/NTNU/5/master/vem/vem/mat/VEM2D/')
+addpath('~/NTNU/5/master/vem/vem/mat/VEM2D/stable/')
+
 
 n = 5;
 
@@ -17,125 +23,103 @@ n = 5;
 % G = compositePebiGrid(1/20, [1, 1], ...
 %                        'faultLines', fault, 'faultGridFactor', 1/sqrt(2));
 
-x = linspace(.1,.8,10);
-y = 1-x;
-fault = {[x' , y']};
-G = pebiGrid(1/10, [1, 1], ...
-                       'faultLines', fault);
-                   
-                   
-faultFaces = 1:G.faces.num;
-faultFaces = faultFaces(G.faces.tag);
+% x = linspace(.2,.8,10);
+% y = 1-x;
+% fault = {[x' , y']};
+% G = pebiGrid(1/10, [1, 1], ...
+%                   'faultLines', fault);
+
+xMax = 1; yMax = 1;
+G = cartGrid([n,100*n],[xMax, yMax]);
+G = twister(G);
+
+G = computeGeometry(G);
+
+% faultFaces = 1:G.faces.num;
+% faultFaces = faultFaces(G.faces.centroids(:,1) == xMax/2);
+% faultFaces = 1:G.faces.num;
+% faultFaces = faultFaces(G.faces.tag);
 G = mrstGridWithFullMappings(G);
 G = sortEdges(G);
-G = VEM2D_makeInternalBoundary(G, faultFaces);
+
+% G = VEM2D_makeInternalBoundary(G, faultFaces);
 f = zeros(G.cells.num,1);
 G = computeVEM2DGeometry(G,f,1,1);
-find(min(abs(bsxfun(@minus,G.cells.centroids,[.2,.2]))));
+ 
+% sourceCoords = [.2,.2];
+% source = sum(bsxfun(@minus, G.cells.centroids, sourceCoords).^2,2);
+% source = find(source == min(source));
+% source = source(1);
+% 
+% sinkCoords = [.8,.8];
+% sink = sum(bsxfun(@minus, G.cells.centroids, sinkCoords).^2,2);
+% sink = find(sink == min(sink));
+% sink = sink(1);
+% 
+% Q = 10;
+% src = addSource([], source, Q);
+% src = addSource(src, sink, -Q);
 
-sourceCoords = [.2,.2];
-source = sum(bsxfun(@minus, G.cells.centroids, sourceCoords).^2,2);
-source = find(source == min(source));
-
-sinkCoords = [.8,.8];
-sink = sum(bsxfun(@minus, G.cells.centroids, sinkCoords).^2,2);
-sink = find(sink == min(sink));
-
-f = @(X) zeros(size(X,1),1);
-
-Q = 10;
-src = addSource([], source, Q);
-src = addSource(src, sink, -Q);
-
+tol = 1e-6;
 boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
-isExternal = G.faces.centroids(boundaryEdges,1) == 0 | ...
-        G.faces.centroids(boundaryEdges,1) == 1 | ...
-        G.faces.centroids(boundaryEdges,2) == 0 | ...
-        G.faces.centroids(boundaryEdges,2) == 1;
+isExternal = abs(G.faces.centroids(boundaryEdges,1)) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,1) - xMax) < tol | ...
+             abs(G.faces.centroids(boundaryEdges,2)) < tol |...
+             abs(G.faces.centroids(boundaryEdges,2) - yMax) < tol;
 isInternal = ~isExternal;
 
-bc = VEM_addBC(G, [], boundaryEdges(isExternal), 'pressure', 0);
-bc = VEM_addBC(G, bc, boundaryEdges(isInternal), 'flux', 0);
+gD = @(X) X(:,1).^2 -X(:,2).^2 + yMax^2;
+
+bc_VEM = VEM_addBC(G, [], boundaryEdges(isExternal), 'pressure', gD);
+bc_VEM = VEM_addBC(G, bc_VEM, boundaryEdges(isInternal), 'flux', gD);
+bc_MRST = addBC([], boundaryEdges(isExternal), 'pressure', gD(G.faces.centroids(boundaryEdges(isExternal),:)));
+bc_MRST = addBC(bc_MRST, boundaryEdges(isInternal), 'flux', gD(G.faces.centroids(boundaryEdges(isExternal),:)));
+
             
-sol1 = VEM2D_v3(G,f,1,bc,'src', src);
-sol1 = cellAverages(G,sol1);
+%% Set fluid and rock properties
+gravity reset off 
 
-% plotVEM(G, sol1.nodeValues, 'dof')
+fluid = initSingleFluid('mu' , 1, 'rho', 1);
+rock.poro = ones(G.cells.num,1);
+rock.perm = ones([G.cells.num,1]);
 
-sol2 = VEM2D_v3(G,f,2,bc, 'src', src);
 
-% plotVEM(G,[sol2.nodeValues; sol2.edgeValues; sol2.cellMoments], '')
+%% add Sources
+pv = sum(poreVolume(G, rock));
 
-figure;
-plotCellData(G, sol1.cellAverages);
+%% Initialize state
+sInit = initState(G, [], 0, [0.0,1]);
+S     = computeMimeticIP(G, rock, 'Verbose', true);
+trans = computeTrans(G,rock);
+%% Solve Laplace
+
+sTPFA = incompTPFA(sInit, G, trans, fluid, 'bc', bc_MRST);
+sMIM  = solveIncompFlow(sInit, G, S, fluid, 'bc', bc_MRST);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'findCellAverages', true);
+sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
+
+G.cells.centroids(max(sTPFA.pressure) == sTPFA.pressure,:)
+G.cells.centroids(max(sMIM.pressure) == sMIM.pressure,:)
+G.nodes.coords(max(sVEM1.nodeValues) == sVEM1.nodeValues,:)
+G.nodes.coords(max(sVEM2.nodeValues) == sVEM2.nodeValues,:)
+
+subplot(2,2,1)
+plotCellData(G,sTPFA.pressure,'edgeColor', 'none');
+title('TPFA');
 colorbar;
-figure;
-plotCellData(G, sol2.cellMoments)
+axis equal
+subplot(2,2,2)
+plotCellData(G,sMIM.pressure,'edgeColor', 'none');
+title('Mimetic');
 colorbar;
-
-% %% Set simulation parameters
-% T      = 120*second();    % End time
-% dT     = T/120;           % Time steps
-% dTplot = 1:1:T;           % Plot at these time steps
-% 
-% %% Generate grid
-% 
-% %% Set fluid and rock properties
-% gravity reset off 
-% 
-% fluid = initSimpleFluid('mu' , [   1,   5]*centi*poise     , ...
-%                         'rho', [1000, 700]*kilogram/meter^3, ...
-%                         'n'  , [   2,   2]);
-% 
-% rock.poro = ones(G.cells.num,1)*0.15;
-% rock.perm = ones([G.cells.num,1])*100*milli*darcy;
-% 
-% %% add Sources
-% srcCells = find(G.cells.tag);
-% pv = sum(poreVolume(G, rock));
-% 
-%             
-% %% Solve
-% state = initState(G, [], 0, [0.0,1]);
-% trans = computeTrans(G,rock);
-% % state = incompTPFA(state, G, trans, fluid, 'src', src);
-% sol1 = VEM2D_v3(G,f,1,bc,'src', src);
-% sol1 = cellAverages(G,sol1);
-% state.pressure = sol1.cellAverages;
-% % Prepare plotting of saturations
-% clf;
-% hold on
-% plotGrid(G, 'FaceColor', 'none', 'EdgeAlpha', 0.1);
-% axis off equal, view([-120,30]), colormap(flipud(jet))
-% 
-% colorbar; hs = []; ha=[]; zoom(1.3);
-% 
-% % Start the main loop
-% t  = 0;  plotNo = 1;
-% while t < T,
-%    state = implicitTransport(state, G, dT, rock, fluid, 'src', src);
-% 
-%    % Check for inconsistent saturations
-%    assert(max(state.s(:,1)) < 1+eps && min(state.s(:,1)) > -eps);
-%    
-%    % Update solution of pressure equation.
-%    %state = incompMimetic(state, G3D, S, fluid, 'wells', W);
-% %    state = incompTPFA(state, G, trans, fluid, 'src', src);
-%     sol1 = VEM2D_v3(G,f,1,bc,'src', src);
-%     sol1 = cellAverages(G,sol1);
-%     state.pressure = sol1.cellAverages;
-%    
-%    % Increase time and continue if we do not want to plot saturations
-%    t = t + dT;   
-%    if ( t + dT <= dTplot(plotNo)), continue, end
-%    delete([hs, ha])
-%    hs = plotCellData(G, state.s(:,1), find(state.s(:,1) >= 0.0));
-%    ha = annotation('textbox', [0.1714 0.8214 0.5000 0.1000], 'LineStyle', 'none', ...
-%                    'String', ['Water saturation at ', ...
-%                               num2str(convertTo(t,second)), ' s']);
-%    fig = gcf();
-%    set(findall(fig,'-property','FontSize'),'FontSize',14) 
-%    view(0, 90), drawnow, caxis([0 1])
-%   
-%    plotNo = plotNo+1;
-% end
+axis equal
+subplot(2,2,3)
+plotCellData(G,sVEM1.cellMoments,'edgeColor', 'none');
+title('VEM 1st order');
+colorbar;
+axis equal
+subplot(2,2,4)
+plotCellData(G,sVEM2.cellMoments,'edgeColor', 'none');
+title('VEM 2nd order');
+colorbar;
+axis equal
