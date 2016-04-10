@@ -57,17 +57,24 @@ trans = computeTrans(G,rock);
 
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'bc', bc_MRST);
 sMIM  = incompMimetic(sInit, G, S, fluid,'bc', bc_MRST);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
 sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
 
 
+subplot(2,2,1)
 plotCellData(G,sTPFA.pressure,'edgecolor','none')
 colormap(jet)
 colorbar()
-figure
+subplot(2,2,2)
 plotCellData(G,sMIM.pressure,'edgecolor','none')
 colormap(jet)
 colorbar()
-figure()
+
+subplot(2,2,3)
+plotCellData(G,sVEM1.cellMoments,'edgecolor','none');
+title('VEM 1st order');
+colorbar;
+subplot(2,2,4)
 plotCellData(G,sVEM2.cellMoments,'edgecolor','none')
 colormap(jet)
 colorbar()

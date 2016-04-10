@@ -4,12 +4,14 @@ mrstModule add mimetic
 mrstModule add streamlines
 addpath('../../vem/mat/VEM2D/stable/')
 addpath('../../pebi/voronoi2D')
+addpath('../../vem/mat/')
 run('../../project-mechanics-fractures/mystartup.m')
 
-xmax = 1000;
+
+xmax = 1;
 ymax = 1;
-nx   = 20;
-ny   = 20;
+nx   = 100;
+ny   = 100;
 
 G = cartGrid([nx,ny],[xmax,ymax]);
 
@@ -45,6 +47,7 @@ fluid = initSingleFluid('mu' , 2    , ...
                         'rho', 1);
 
 rock.poro = ones(G.cells.num,1);
+
 rock.perm = ones([G.cells.num,1]);
 
 
@@ -67,11 +70,10 @@ seed = (nx:nx-1:nx*ny).';
 SfMIM = pollock(G, sMIM, seed,'substeps', 1);
 SbMIM = pollock(G, sMIM, seed,'substeps', 1,'reverse', true);
 %% VEM2
-% sVEM1 = VEM2D_v3(G,0,1,bc_VEM);
-% sVEM1 = cellAverages(G, sVEM1);
+sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
 sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
 sVEM2.s = sTPFA.s;
-[sVEM2] = fluxApprox(G,sVEM2, rock,fluid, bc_VEM);
+[sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
 SfVEM2 = pollock(G, sVEM2, seed,'substeps', 1);
 SbVEM2 = pollock(G, sVEM2, seed,'substeps', 1,'reverse', true);
 %% Plotting
@@ -97,16 +99,16 @@ set([hf;hb],'Color','k');
 title('Mimetic');
 colorbar;
 %axis equal
-% subplot(2,2,3)
-% plotCellData(G,sVEM1.cellAverages,'edgecolor','none');
-% title('VEM 1st order');
-% colorbar;
-% axis equal
+subplot(2,2,3)
+plotCellData(G,sVEM1.cellMoments,'edgecolor','none');
+title('VEM 1st order');
+colorbar;
+%axis equal
 subplot(2,2,4)
 plotCellData(G,sVEM2.cellMoments,'edgecolor','none');
-hf=streamline(SfVEM2);
-hb=streamline(SbVEM2);
-set([hf;hb],'Color','k');
-title('VEM 2nd order');
+%hf=streamline(SfVEM2);
+%hb=streamline(SbVEM2);
+%set([hf;hb],'Color','k');
+%title('VEM 2nd order');
 colorbar;
 %axis equal
