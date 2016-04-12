@@ -3,8 +3,8 @@ clc;
 clear; close all; %addpath ../../voronoi2D/
 
 mrstModule add mimetic
-addpath('../../vem/vem/mat/VEM2D/stable/')
-run('../../project-mechanics-fractures/mystartup.m')
+addpath('../../vem/mat/VEM2D/')
+addpath('../../pebiGridding/voronoi2D/')
 
 % this script performs a simple 2 phase(oil and water) flow simulation in
 % Using a composite grid. The case consist of two wells (one injector and
@@ -101,8 +101,8 @@ isExternal = abs(G.faces.centroids(boundaryEdges,1)) < tol | ...
              abs(G.faces.centroids(boundaryEdges,2) - ymax) < tol;
 isInternal = ~isExternal;
 
-bc_VEM = VEM_addBC(G, [], boundaryEdges(isExternal), 'pressure', 0);
-bc_VEM = VEM_addBC(G, bc_VEM, boundaryEdges(isInternal), 'flux', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges(isExternal), 'pressure', 0);
+bc_VEM = VEM2D_addBC(bc_VEM, G, boundaryEdges(isInternal), 'flux', 0);
 
 bc_MRST = addBC([], boundaryEdges(isExternal), 'pressure', 0);
 bc_MRST = addBC(bc_MRST, boundaryEdges(isInternal), 'flux', 0);
@@ -138,8 +138,8 @@ trans = computeTrans(G,rock);
 
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2 = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1 = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2 = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 subplot(2,2,1)
 plotCellData(G,sTPFA.pressure);

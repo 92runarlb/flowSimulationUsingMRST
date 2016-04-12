@@ -2,11 +2,7 @@ clc; clear all; close all
 
 mrstModule add mimetic
 mrstModule add streamlines
-addpath('../../vem/mat/VEM2D/stable/')
-addpath('../../pebi/voronoi2D')
-addpath('../../vem/mat/')
-run('../../project-mechanics-fractures/mystartup.m')
-
+addpath('../../vem/mat/VEM2D/')
 
 xmax = 1;
 ymax = 1;
@@ -16,11 +12,7 @@ ny   = 100;
 G = cartGrid([nx,ny],[xmax,ymax]);
 
 G.nodes.coords = twister(G.nodes.coords);
-
-
 G = sortEdges(G);
-G = mrstGridWithFullMappings(G);
-G = VEM2D_makeInternalBoundary(G, find(G.faces.tag));
 G = computeVEM2DGeometry(G);
 
 %%  Set BC
@@ -35,9 +27,9 @@ bc_MRST = addBC([], boundaryEdges(left), 'pressure', 0);
 bc_MRST = addBC(bc_MRST, boundaryEdges(right), 'pressure', 100);
 bc_MRST = addBC(bc_MRST, boundaryEdges(neuman), 'flux', 0);
 
-bc_VEM = VEM_addBC(G,[], boundaryEdges(left), 'pressure', 0);
-bc_VEM = VEM_addBC(G,bc_VEM, boundaryEdges(right), 'pressure', 100);
-bc_VEM = VEM_addBC(G,bc_VEM, boundaryEdges(neuman), 'flux', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges(left), 'pressure', 0);
+bc_VEM = VEM2D_addBC(bc_VEM, G, boundaryEdges(right), 'pressure', 100);
+bc_VEM = VEM2D_addBC(bc_VEM, G, boundaryEdges(neuman), 'flux', 0);
 
 
 %% Set fluid and rock properties
@@ -70,9 +62,9 @@ sMIM  = incompMimetic(sInit, G, S, fluid,'bc',bc_MRST);
 % SfMIM = pollock(G, sMIM, seed,'substeps', 1);
 % SbMIM = pollock(G, sMIM, seed,'substeps', 1,'reverse', true);
 %% VEM1
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
+sVEM1 = VEM2D(G,0,1,bc_VEM,'cellAverages',true);
 %% VEM2
-sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
+sVEM2 = VEM2D(G,0,2,bc_VEM);
 % [sVEM2] = fluxApprox(G,sMIM, rock,fluid, bc_VEM);
 % SfVEM2 = pollock(G, sVEM2, seed,'substeps', 1);
 % SbVEM2 = pollock(G, sVEM2, seed,'substeps', 1,'reverse', true);

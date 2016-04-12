@@ -1,11 +1,7 @@
 clc; clear; close all;
 
 mrstModule add mimetic
-addpath('../../vem/vem/mat/VEM2D/stable/')
-addpath('../../vem/vem/mat/')
-addpath('../../vem/vem/mat/VEM2D/')
-run('../../project-mechanics-fractures/mystartup.m')
-
+addpath('../../vem/mat/VEM2D/')
 mult = [1,5,25];
 m = numel(mult);
 n = 10;
@@ -21,7 +17,7 @@ gD = @(X) -log(1./(sqrt(sum(bsxfun(@minus, X, C).^2,2)))) + 10;
 
 boundaryEdges = find(any(G.faces.neighbors == 0,2));
 
-bc_VEM = VEM_addBC(G, [], boundaryEdges, 'pressure', gD);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges, 'pressure', gD);
 bc_MRST = addBC([], boundaryEdges, 'pressure',gD(G.faces.centroids(boundaryEdges,:)));
 
 gravity reset off
@@ -37,10 +33,10 @@ trans = computeTrans(G,rock);
 
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'bc', bc_MRST);
 sMIM  = solveIncompFlow(sInit, G, S, fluid, 'bc', bc_MRST);
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'findCellAverages', true);
-sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
+sVEM1 = VEM2D(G,0,1,bc_VEM, 'findCellAverages', true);
+sVEM2 = VEM2D(G,0,2,bc_VEM);
 
-faceAvg = polygonInt_v2(G,1:G.cells.num,gD,7)./G.cells.volumes;
+faceAvg = polygonInt(G,1:G.cells.num,gD,7)./G.cells.volumes;
 
 NMIM = sqrt(G.cells.num);
 NK1 = sqrt(G.nodes.num);

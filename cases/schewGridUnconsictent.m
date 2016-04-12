@@ -2,9 +2,7 @@ clc; clear all; close all
 
 mrstModule add mimetic
 mrstModule add streamlines
-addpath('../../vem/mat/VEM2D/stable/')
-addpath('../../pebi/voronoi2D')
-run('../../project-mechanics-fractures/mystartup.m')
+addpath('../../vem/mat/VEM2D/')
 
 xmax = 2;
 ymax = 1;
@@ -35,9 +33,9 @@ bc_MRST = addBC([], boundaryEdges(bot), 'pressure', 0);
 bc_MRST = addBC(bc_MRST, boundaryEdges(top), 'pressure', 100);
 bc_MRST = addBC(bc_MRST, boundaryEdges(neuman), 'flux', 0);
 
-bc_VEM = VEM_addBC(G,[], boundaryEdges(bot), 'pressure', 0);
-bc_VEM = VEM_addBC(G,bc_VEM, boundaryEdges(top), 'pressure', 100);
-bc_VEM = VEM_addBC(G,bc_VEM, boundaryEdges(neuman), 'flux', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges(bot), 'pressure', 0);
+bc_VEM = VEM2D_addBC(bc_VEM, G, boundaryEdges(top), 'pressure', 100);
+bc_VEM = VEM2D_addBC(bc_VEM, G, boundaryEdges(neuman), 'flux', 0);
 %% Set fluid and rock properties
 gravity reset off 
 
@@ -57,8 +55,8 @@ trans = computeTrans(G,rock);
 
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'bc', bc_MRST);
 sMIM  = incompMimetic(sInit, G, S, fluid,'bc', bc_MRST);
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM,'findCellAverages',true);
-sVEM2 = VEM2D_v3(G,0,2,bc_VEM);
+sVEM1 = VEM2D(G,0,1,bc_VEM,'cellAverages',true);
+sVEM2 = VEM2D(G,0,2,bc_VEM);
 
 
 subplot(2,2,1)

@@ -1,8 +1,7 @@
 clc; clear; close all;
 
 mrstModule add mimetic
-addpath('../../vem/vem/mat/VEM2D/stable/')
-run('../../project-mechanics-fractures/mystartup.m')
+addpath('../../vem/mat/VEM2D/')
 
 % this script performs a simple 2 phase(oil and water) flow simulation in
 % Using a composite grid. The case consist of two wells (one injector and
@@ -22,7 +21,7 @@ load('../data/grids/pressureDropGridCartFine.mat');
 tol = 1e-6;
 boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
 
-bc_VEM = VEM_addBC(G, [], boundaryEdges, 'pressure', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges, 'pressure', 0);
 bc_MRST = addBC([], boundaryEdges, 'pressure', 0);
 
             
@@ -50,8 +49,8 @@ trans = computeTrans(G,rock);
 
 sTPFAcart = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIMcart  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1cart = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2cart = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1cart = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2cart = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 
 %% add Sources
@@ -66,8 +65,8 @@ src = addSource([],srcCells,Qscaled*ones(numel(srcCells),1));
 
 sTPFAcomp = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIMcomp  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1comp = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2comp = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1comp = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2comp = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 %% add Sources
 srcCellVol = 9.564213523552989e-04;
@@ -81,8 +80,8 @@ src = addSource([],srcCells,Qscaled*ones(numel(srcCells),1));
 
 sTPFApebi = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIMpebi  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1pebi = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2pebi = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1pebi = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2pebi = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 %% Save solutions
 Gr = G;

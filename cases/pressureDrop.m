@@ -1,8 +1,7 @@
 clc; clear; close all;
 
 mrstModule add mimetic
-addpath('../../vem/vem/mat/VEM2D/stable/')
-run('../../project-mechanics-fractures/mystartup.m')
+addpath('../../vem/mat/VEM2D/')
 
 %% Chose grid
 % Chose the type of grid.
@@ -24,7 +23,7 @@ load(refName);
 %%  Set BC
 tol = 1e-6;
 boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
-bc_VEM = VEM_addBC(G, [], boundaryEdges, 'pressure', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges, 'pressure', 0);
 bc_MRST = addBC([], boundaryEdges, 'pressure', 0);
 
             
@@ -48,8 +47,8 @@ trans = computeTrans(G,rock);
 %% Solve Laplace
 sTPFA = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIM  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1 = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2 = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1 = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2 = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 
 tit = {'TPFA', 'Mimetic', 'VEM 1st order', 'VEM 2nd order'};

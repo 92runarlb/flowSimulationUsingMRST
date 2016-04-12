@@ -1,20 +1,17 @@
 clc; clear; close all;
 
 mrstModule add mimetic
-addpath('../../vem/vem/mat/VEM2D/stable/')
-run('../../project-mechanics-fractures/mystartup.m')
+addpath('../../vem/mat/VEM2D/')
 
 % this script performs a simple 2 phase(oil and water) flow simulation in
 % Using a composite grid. The case consist of two wells (one injector and
 % one producer) and a linear no-flow fault seperating them.
 
-%% Chose grid
+%% Choose grid
 % Chose the type of grid.
 % gT = 1      Coarse cartesian
 % gT = 2      composite pebi
 % gT = 3      fully unstructured grid
-
-
 
 load('../data/grids/pressureDropGridCartFine.mat');
 
@@ -22,7 +19,7 @@ load('../data/grids/pressureDropGridCartFine.mat');
 tol = 1e-6;
 boundaryEdges = find(G.faces.neighbors(:,1) == 0 | G.faces.neighbors(:,2) == 0);
 
-bc_VEM = VEM_addBC(G, [], boundaryEdges, 'pressure', 0);
+bc_VEM = VEM2D_addBC([], G, boundaryEdges, 'pressure', 0);
 bc_MRST = addBC([], boundaryEdges, 'pressure', 0);
 
             
@@ -47,8 +44,8 @@ trans = computeTrans(G,rock);
 
 sTPFAr = incompTPFA(sInit, G, trans, fluid, 'src', src, 'bc', bc_MRST);
 sMIMr  = solveIncompFlow(sInit, G, S, fluid,'src', src, 'bc', bc_MRST);
-sVEM1r = VEM2D_v3(G,0,1,bc_VEM, 'src', src, 'findCellAverages', true);
-sVEM2r = VEM2D_v3(G,0,2,bc_VEM, 'src', src);
+sVEM1r = VEM2D(G,0,1,bc_VEM, 'src', src, 'cellAverages', true);
+sVEM2r = VEM2D(G,0,2,bc_VEM, 'src', src);
 
 %% Save solutions
 Gr = G;
